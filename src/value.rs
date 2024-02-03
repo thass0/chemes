@@ -10,7 +10,7 @@ use alloc::fmt::Formatter;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     String(String),
-    Number(f64),
+    Number(Number),
     Symbol(String),
     Pair {
 	car: Box<Value>,
@@ -26,7 +26,7 @@ impl Value {
     }
 
     /// Construct a number value.
-    pub fn number<N: Into<f64>>(n: N) -> Value {
+    pub fn number<N: Into<Number>>(n: N) -> Value {
 	Value::Number(n.into())
     }
 
@@ -70,6 +70,44 @@ impl fmt::Display for Value {
 	    Value::Pair { car, cdr } =>
 		write!(f, "( {car} . {cdr})"),
 	    Value::Empty => write!(f, "()"),
+	}
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Number {
+    Int(i32),
+    Rat {
+	p: i32,  // Numerator
+	q: u32,  // Denominator
+    },
+    Real(f64),
+}
+
+impl From<i32> for Number {
+    fn from(i: i32) -> Self {
+	Self::Int(i)
+    }
+}
+
+impl From<(i32, u32)> for Number {
+    fn from(z: (i32, u32)) -> Self {
+	Self::Rat { p: z.0, q: z.1 }
+    }
+}
+
+impl From<f64> for Number {
+    fn from(r: f64) -> Self {
+	Self::Real(r)
+    }
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+	match self {
+	    Self::Int(i) => write!(f, "{i}"),
+	    Self::Rat { p, q } => write!(f, "{p}/{q}"),
+	    Self::Real(r) => write!(f, "{r}"),
 	}
     }
 }

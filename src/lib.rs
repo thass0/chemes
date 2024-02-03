@@ -3,5 +3,9 @@
 
 extern crate alloc;
 
+mod lex;
+
+mod parse;
+pub use parse::*;
+
 mod value;
-pub use value::*;
