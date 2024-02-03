@@ -19,6 +19,47 @@ pub enum Value {
     Empty,
 }
 
+impl Value {
+    /// Construct a string value.
+    pub fn string<A: AsRef<str>>(s: A) -> Value {
+	Value::String(s.as_ref().to_owned())
+    }
+
+    /// Construct a number value.
+    pub fn number<N: Into<f64>>(n: N) -> Value {
+	Value::Number(n.into())
+    }
+
+    /// Construct a symbol value.
+    pub fn symbol<A: AsRef<str>>(s: A) -> Value {
+	Value::Symbol(s.as_ref().to_owned())
+    }
+
+    /// Construct a pair value.
+    pub fn cons(&self, other: &Self) -> Self {
+	Self::Pair {
+	    car: Box::new(self.clone()),
+	    cdr: Box::new(other.clone()),
+	}
+    }
+
+    /// Get the 'car' of a pair value.
+    pub fn car<'a>(&'a self) -> TypeResult<'a, &'a Value> {
+	match self {
+	    Value::Pair { car, cdr: _ } => Ok(car.as_ref()),
+	    _ => Err(TypeError::CarExpectsPair(self)),
+	}
+    }
+
+    /// Get the 'cdr' of a pair value.
+    pub fn cdr<'a>(&'a self) -> TypeResult<'a, &'a Value> {
+	match self {
+	    Value::Pair { car: _, cdr } => Ok(cdr.as_ref()),
+	    _ => Err(TypeError::CdrExpectsPair(self)),
+	}
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 	match self {
@@ -58,47 +99,6 @@ impl<'a> fmt::Display for TypeError<'a> {
 		    "'cdr' expects to receive a pair. Instead it got: {}",
 		    v
 		),
-	}
-    }
-}
-
-impl Value {
-    /// Construct a string value.
-    pub fn string<A: AsRef<str>>(s: A) -> Value {
-	Value::String(s.as_ref().to_owned())
-    }
-
-    /// Construct a number value.
-    pub fn number<N: Into<f64>>(n: N) -> Value {
-	Value::Number(n.into())
-    }
-
-    /// Construct a symbol value.
-    pub fn symbol<A: AsRef<str>>(s: A) -> Value {
-	Value::Symbol(s.as_ref().to_owned())
-    }
-
-    /// Construct a pair value.
-    pub fn cons(&self, other: &Self) -> Self {
-	Self::Pair {
-	    car: Box::new(self.clone()),
-	    cdr: Box::new(other.clone()),
-	}	    
-    }
-
-    /// Get the 'car' of a pair value.
-    pub fn car<'a>(&'a self) -> TypeResult<'a, &'a Value> {
-	match self {
-	    Value::Pair { car, cdr: _ } => Ok(car.as_ref()),
-	    _ => Err(TypeError::CarExpectsPair(self)),
-	}
-    }
-
-    /// Get the 'cdr' of a pair value.
-    pub fn cdr<'a>(&'a self) -> TypeResult<'a, &'a Value> {
-	match self {
-	    Value::Pair { car: _, cdr } => Ok(cdr.as_ref()),
-	    _ => Err(TypeError::CdrExpectsPair(self)),
 	}
     }
 }
