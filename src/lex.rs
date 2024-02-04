@@ -53,7 +53,7 @@ impl<'a> Cursor<'a> {
 	    '(' => Token::new(TokenKind::LParen, self.bump()),
 	    ')' => Token::new(TokenKind::RParen, self.bump()),
 	    '"' => self.string(),
-	    ch if ch.is_digit(10) => self.number(),
+	    ch if ch.is_ascii_digit() => self.number(),
 	    _ => self.symbol(),
 	}
     }
@@ -98,7 +98,7 @@ impl<'a> Cursor<'a> {
     }
 
     fn numeral(&mut self) -> i32 {
-	self.bump_while(|ch| ch.is_digit(10))
+	self.bump_while(|ch| ch.is_ascii_digit())
 	    .parse::<i32>()
 	    .unwrap()
     }
@@ -138,7 +138,7 @@ impl<'a> Cursor<'a> {
     }
 
     fn peek(&mut self) -> Option<char> {
-	self.chars.peek().map(|&ch| ch)
+	self.chars.peek().copied()
     }
 }
 
@@ -238,7 +238,7 @@ mod tests {
         (+ (fib (- n 1))
            (fib (- n 2))))))"#
 	    ),
-	    Ok(vec![
+	    vec![
 		Token { kind: LParen, at: Position { line: 2, column: 1 } },
 		Token {
 		    kind: Symbol("define".to_owned()),
@@ -354,7 +354,7 @@ mod tests {
 		Token { kind: RParen, at: Position { line: 8, column: 27 } },
 		Token { kind: RParen, at: Position { line: 8, column: 28 } },
 		Token { kind: Eof, at: Position { line: 8, column: 29 } }
-	    ])
+	    ]
 	)
     }
 
@@ -362,16 +362,16 @@ mod tests {
     fn eating_whitespace_works() {
 	assert_eq!(
 	    lex("   \t \n \n\t"),
-	    Ok(vec![Token::new(TokenKind::Eof, Position::new(3, 2))]),
+	    vec![Token::new(TokenKind::Eof, Position::new(3, 2))],
 	);
 
 	assert_eq!(
 	    lex(" ( \n )\t"),
-	    Ok(vec![
+	    vec![
 		Token::new(TokenKind::LParen, Position::new(1, 2)),
 		Token::new(TokenKind::RParen, Position::new(2, 2)),
 		Token::new(TokenKind::Eof, Position::new(2, 4)),
-	    ]),
+	    ],
 	);
     }
 
@@ -379,9 +379,9 @@ mod tests {
     fn eating_comments_works() {
 	assert_eq!(
 	    lex("; blah\n;; blah blah\n;;; blah ;;;"),
-	    Ok(vec![
+	    vec![
 		Token::new(TokenKind::Eof, Position::new(3, 13)),
-	    ])
+	    ]
 	);
     }
 
@@ -391,30 +391,30 @@ mod tests {
 
 	assert_eq!(
 	    lex(&format!("\"{s1}\"")),
-	    Ok(vec![
+	    vec![
 		Token::new(TokenKind::String(s1.to_owned()), Position::new(1, 1)),
 		Token::new(TokenKind::Eof, Position::new(1, 51)),
-	    ]),
+	    ],
 	);
 
 	assert_eq!(
 	    lex(&format!("(\"{s1}\")")),
-	    Ok(vec![
+	    vec![
 		Token::new(TokenKind::LParen, Position::new(1, 1)),
 		Token::new(TokenKind::String(s1.to_owned()), Position::new(1, 2)),
 		Token::new(TokenKind::RParen, Position::new(1, 52)),
 		Token::new(TokenKind::Eof, Position::new(1, 53)),
-	    ]),
+	    ],
 	);
 
 	let s2 = "In a string,\nthere can be anything: \t even: ().\n";
 
 	assert_eq!(
 	    lex(&format!("\"{s2}\"")),
-	    Ok(vec![
+	    vec![
 		Token::new(TokenKind::String(s2.to_owned()), Position::new(1, 1)),
 		Token::new(TokenKind::Eof, Position::new(3, 2)),
-	    ]),
+	    ],
 	);
     }
 
@@ -422,7 +422,7 @@ mod tests {
     fn lexing_numbers_works() {
 	assert_eq!(
 	    lex("515 69343575 020000 32.3426 32/3 9/2"),
-	    Ok(vec![
+	    vec![
 		Token::new(TokenKind::Number(515.into()), Position::new(1, 1)),
 		Token::new(TokenKind::Number(69343575.into()), Position::new(1, 5)),
 		Token::new(TokenKind::Number(20000.into()), Position::new(1, 14)),
@@ -430,7 +430,7 @@ mod tests {
 		Token::new(TokenKind::Number((32, 3).into()), Position::new(1, 29)),
 		Token::new(TokenKind::Number((9, 2).into()), Position::new(1, 34)),
 		Token::new(TokenKind::Eof, Position::new(1, 37)),
-	    ]),
+	    ],
 	);
     }
 
@@ -448,7 +448,7 @@ mod tests {
     fn lexing_symbols_works() {
 	assert_eq!(
 	    lex("abc? blah-symbol symbols,are.special!"),
-	    Ok(vec![
+	    vec![
 		Token::new(
 		    TokenKind::Symbol("abc?".to_owned()),
 		    Position::new(1, 1),
@@ -462,7 +462,7 @@ mod tests {
 		    Position::new(1, 18)
 		),
 		Token::new(TokenKind::Eof, Position::new(1, 38)),
-	    ])
+	    ]
 	)
     }
 }

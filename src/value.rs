@@ -43,8 +43,17 @@ impl Value {
 	}
     }
 
+    /// Construct a list of values (as pairs).
+    pub fn list(elems: &[Self]) -> Self {
+	let mut p = Value::Empty;
+	for elem in elems.iter().rev() {
+	    p = elem.cons(&p);
+	}
+	p
+    }
+
     /// Get the 'car' of a pair value.
-    pub fn car<'a>(&'a self) -> TypeResult<'a, &'a Value> {
+    pub fn car(&self) -> TypeResult<'_, &Value> {
 	match self {
 	    Value::Pair { car, cdr: _ } => Ok(car.as_ref()),
 	    _ => Err(TypeError::CarExpectsPair(self)),
@@ -52,7 +61,7 @@ impl Value {
     }
 
     /// Get the 'cdr' of a pair value.
-    pub fn cdr<'a>(&'a self) -> TypeResult<'a, &'a Value> {
+    pub fn cdr(&self) -> TypeResult<'_, &Value> {
 	match self {
 	    Value::Pair { car: _, cdr } => Ok(cdr.as_ref()),
 	    _ => Err(TypeError::CdrExpectsPair(self)),
@@ -74,7 +83,7 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Number {
     Int(i32),
     Rat {
@@ -150,6 +159,21 @@ mod tests {
 	let p = Value::string("blah").cons(&Value::number(42));
 	assert_eq!(p.car(), Ok(&Value::string("blah")));
 	assert_eq!(p.cdr(), Ok(&Value::number(42)));
+	assert_eq!(
+	    Value::list(&[Value::string("a"), Value::number(4), Value::Empty]),
+	    Value::Pair {
+		car: Box::new(Value::string("a")),
+		cdr: Box::new(
+		Value::Pair {
+		    car: Box::new(Value::number(4)),
+		    cdr: Box::new(
+		    Value::Pair {
+			car: Box::new(Value::Empty),
+			cdr: Box::new(Value::Empty),
+		    }),
+		}),
+	    },
+	);
 	assert_eq!(
 	    p.cdr().unwrap().car(),
 	    Err(TypeError::CarExpectsPair(&Value::number(42)))
