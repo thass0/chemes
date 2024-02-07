@@ -51,28 +51,28 @@ impl Value {
     }
 
     /// Get the 'car' of a pair value.
-    pub fn car(&self) -> TypeResult<'_, &Value> {
+    pub fn car(&self) -> Option<Value> {
         match self {
-            Value::Pair { car, cdr: _ } => Ok(car.as_ref()),
-            _ => Err(TypeError::CarExpectsPair(self)),
+            Value::Pair { car, cdr: _ } => Some(*car.clone()),
+            _ => None,
         }
     }
 
     /// Get the 'cdr' of a pair value.
-    pub fn cdr(&self) -> TypeResult<'_, &Value> {
+    pub fn cdr(&self) -> Option<Value> {
         match self {
-            Value::Pair { car: _, cdr } => Ok(cdr.as_ref()),
-            _ => Err(TypeError::CdrExpectsPair(self)),
+            Value::Pair { car: _, cdr } => Some(*cdr.clone()),
+            _ => None,
         }
     }
 
     /// Get the 'cadr' of a pair value.
-    pub fn cadr(&self) -> TypeResult<'_, &Value> {
+    pub fn cadr(&self) -> Option<Value> {
 	self.cdr()?.car()
     }
 
     /// Get the 'caddr' of a pair value.
-    pub fn caddr(&self) -> TypeResult<'_, &Value> {
+    pub fn caddr(&self) -> Option<Value> {
 	self.cdr()?.cdr()?.car()
     }
 }
@@ -132,29 +132,6 @@ impl fmt::Display for Number {
     }
 }
 
-pub type TypeResult<'a, T> = Result<T, TypeError<'a>>;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TypeError<'a> {
-    CarExpectsPair(&'a Value),
-    CdrExpectsPair(&'a Value),
-}
-
-impl<'a> core::error::Error for TypeError<'a> {}
-
-impl<'a> fmt::Display for TypeError<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            TypeError::CarExpectsPair(v) => {
-                write!(f, "'car' expects to receive a pair. Instead it got: {}", v)
-            }
-            TypeError::CdrExpectsPair(v) => {
-                write!(f, "'cdr' expects to receive a pair. Instead it got: {}", v)
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,8 +139,8 @@ mod tests {
     #[test]
     fn construct_values() {
         let p = Value::string("blah").cons(&Value::number(42));
-        assert_eq!(p.car(), Ok(&Value::string("blah")));
-        assert_eq!(p.cdr(), Ok(&Value::number(42)));
+        assert_eq!(p.car(), Some(Value::string("blah")));
+        assert_eq!(p.cdr(), Some(Value::number(42)));
         assert_eq!(
             Value::list(&[Value::string("a"), Value::number(4), Value::Empty]),
             Value::Pair {
@@ -179,11 +156,11 @@ mod tests {
         );
         assert_eq!(
             p.cdr().unwrap().car(),
-            Err(TypeError::CarExpectsPair(&Value::number(42)))
+            None
         );
         assert_eq!(
             p.cdr().unwrap().cdr(),
-            Err(TypeError::CdrExpectsPair(&Value::number(42)))
+            None
         );
 	assert_eq!(
 	    Value::True.cons(&Value::False),

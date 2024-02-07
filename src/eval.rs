@@ -48,18 +48,18 @@ pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
 fn eval_set(env: &mut Env, values: Value) -> EvalResult<Value> {
     let sym = values
         .car()
-        .map_err(|_| EvalError::SetMissingSymbol)?;
+        .ok_or(EvalError::SetMissingSymbol)?;
     match sym {
 	Value::Symbol(s) => {
 	    let val = values
 		.cadr()
-		.map_err(|_| EvalError::SetMissingValue)?;
-	    match env.set(s, val.clone()) {
-		SetResult::Undefined => Err(EvalError::SetUndefined(s.clone())),
+		.ok_or(EvalError::SetMissingValue)?;
+	    match env.set(&s, val) {
+		SetResult::Undefined => Err(EvalError::SetUndefined(s)),
 		SetResult::Success => Ok(Value::symbol("done")),
 	    }
 	}
-	_ => Err(EvalError::CannotSetNonSymbol(sym.clone()))
+	_ => Err(EvalError::CannotSetNonSymbol(sym))
     }
 }
 
@@ -84,19 +84,17 @@ fn eval_begin(env: &mut Env, mut values: Value) -> EvalResult<Value> {
 fn eval_if(env: &mut Env, values: Value) -> EvalResult<Value> {
     let pred = values
 	.car()
-	.map_err(|_| EvalError::IfMissingPredicate)?;
+	.ok_or(EvalError::IfMissingPredicate)?;
     let cons = values
 	.cadr()
-	.map_err(|_| EvalError::IfMissingConsequent)?;
-    let alt = values
-	.caddr()
-	.ok();
+	.ok_or(EvalError::IfMissingConsequent)?;
+    let alt = values.caddr();
 
     // Anything that's not 'false' counts as true in 'if'.
-    if eval(env, pred.clone())? != Value::False {
-	eval(env, cons.clone())
+    if eval(env, pred)? != Value::False {
+	eval(env, cons)
     } else if let Some(a) = alt {
-	eval(env, a.clone())
+	eval(env, a)
     } else {
 	// Default value if the predicate is false
 	// and there is no alternative.
