@@ -18,7 +18,7 @@ struct Frame {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum SetResult {
+pub enum SetResult {
     Success,
     Undefined,
 }

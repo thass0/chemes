@@ -50,16 +50,6 @@ impl Value {
         p
     }
 
-    /// Constructor for a list shaped like an 'if' special form.
-    pub fn if_(pred: &Self, cons: &Self, alt: &Self) -> Self {
-	Self::list(&[
-	    Self::Symbol("if".to_owned()),
-	    pred.clone(),
-	    cons.clone(),
-	    alt.clone()
-	])
-    }
-
     /// Get the 'car' of a pair value.
     pub fn car(&self) -> TypeResult<'_, &Value> {
         match self {
@@ -85,10 +75,6 @@ impl Value {
     pub fn caddr(&self) -> TypeResult<'_, &Value> {
 	self.cdr()?.cdr()?.car()
     }
-
-    pub fn is_truthy(&self) -> bool {
-	*self != Value::False
-    }
 }
 
 impl fmt::Display for Value {
@@ -100,7 +86,9 @@ impl fmt::Display for Value {
 	    Value::True => write!(f, "true"),
 	    Value::False => write!(f, "false"),
             // TODO: Detect and display lists properly
-            Value::Pair { car, cdr } => write!(f, "( {car} . {cdr})"),
+            Value::Pair { car, cdr } => {
+		write!(f, "( {car} . {cdr})")
+	    },
             Value::Empty => write!(f, "()"),
         }
     }

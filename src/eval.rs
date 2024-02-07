@@ -1,6 +1,8 @@
 use alloc::string::String;
+use alloc::borrow::ToOwned;
 
 use crate::env::Env;
+use crate::env::SetResult;
 use crate::value::Value;
 
 pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
@@ -17,7 +19,7 @@ pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
 	    match *car {
 		Value::Symbol(ref s) => {
 		    match s.as_str() {
-			"set!" => todo!(),
+			"set!" => eval_set(env, *cdr),
 			"define" => todo!(),
 			"if" => eval_if(env, *cdr),
 			"lambda" => todo!(),
@@ -43,15 +45,22 @@ pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
     }
 }
 
-type EvalResult<T> = Result<T, EvalError>;
-
-// TODO: Add sources to the eval errors.
-#[derive(Debug, Clone, PartialEq)]
-pub enum EvalError {
-    Undefined(String),
-    NotAList(Value),
-    IfMissingPredicate,
-    IfMissingConsequent,
+fn eval_set(env: &mut Env, values: Value) -> EvalResult<Value> {
+    let sym = values
+        .car()
+        .map_err(|_| EvalError::SetMissingSymbol)?;
+    match sym {
+	Value::Symbol(s) => {
+	    let val = values
+		.cadr()
+		.map_err(|_| EvalError::SetMissingValue)?;
+	    match env.set(s, val.clone()) {
+		SetResult::Undefined => Err(EvalError::SetUndefined(s.clone())),
+		SetResult::Success => Ok(Value::symbol("done")),
+	    }
+	}
+	_ => Err(EvalError::CannotSetNonSymbol(sym.clone()))
+    }
 }
 
 fn eval_if(env: &mut Env, values: Value) -> EvalResult<Value> {
@@ -65,7 +74,8 @@ fn eval_if(env: &mut Env, values: Value) -> EvalResult<Value> {
 	.caddr()
 	.ok();
 
-    if eval(env, pred.clone())?.is_truthy() {
+    // Anything that's not 'false' counts as true in 'if'.
+    if eval(env, pred.clone())? != Value::False {
 	eval(env, cons.clone())
     } else if let Some(a) = alt {
 	eval(env, a.clone())
@@ -90,6 +100,21 @@ fn eval_list(env: &mut Env, value: Value) -> EvalResult<Value> {
 
 fn apply(_procedure: Value, _arguments: Value) -> EvalResult<Value> {
     todo!()
+}
+
+type EvalResult<T> = Result<T, EvalError>;
+
+// TODO: Add sources to the eval errors.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EvalError {
+    Undefined(String),
+    NotAList(Value),
+    IfMissingPredicate,
+    IfMissingConsequent,
+    SetMissingSymbol,
+    CannotSetNonSymbol(Value),
+    SetMissingValue,
+    SetUndefined(String),
 }
 
 pub fn default_env() -> Env {
@@ -144,13 +169,83 @@ mod tests {
 	assert_eq!(
 	    eval(
 		&mut e,
-		Value::if_(
-		    &Value::False,
-		    &Value::number(1),
-		    &Value::string("not true")
-		),
+		Value::list(&[
+		    Value::symbol("if"),
+		    Value::False,
+		    Value::number(1),
+		    Value::string("not true"),
+		]),
 	    ).unwrap(),
 	    Value::string("not true"),
+	);
+    }
+
+    // #[test]
+    // fn evaluating_define_works() {
+    // 	let mut e = Env::new();
+    // 	assert_eq!(
+    // 	    eval(
+    // 		&mut e,
+    // 		Value::list(&[
+    // 		    Value::symbol("define"),
+    // 		    Value::symbol("x"),
+    // 		    Value::number(53),
+    // 		]),
+    // 	    ).unwrap(),
+    // 	    Value::number(53),
+    // 	);
+    // 	assert_eq!(e.lookup("x"), Some(Value::number(53)));
+    // }
+
+    #[test]
+    fn evaluating_set_works() {
+	let mut e = Env::new();
+	e.define("y", Value::number(43));
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("set!"),
+		    Value::symbol("y"),
+		    Value::number(5),
+		]),
+	    ).unwrap(),
+	    Value::symbol("done"),
+	);
+	assert_eq!(e.lookup("y"), Some(Value::number(5)));
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("set!"),
+		    Value::symbol("non-existent"),
+		    Value::number(43),
+		]),
+	    ).unwrap_err(),
+	    EvalError::SetUndefined("non-existent".to_owned()),
+	);
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("set!"),
+		]),
+	    ).unwrap_err(),
+	    EvalError::SetMissingSymbol,
+	);
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("set!"),
+		    Value::number(34.53),
+		    Value::string("blah"),
+		]),
+	    ).unwrap_err(),
+	    EvalError::CannotSetNonSymbol(Value::number(34.53)),
 	);
     }
 }
