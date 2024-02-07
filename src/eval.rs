@@ -23,7 +23,7 @@ pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
 			"define" => todo!(),
 			"if" => eval_if(env, *cdr),
 			"lambda" => todo!(),
-			"begin" => todo!(),
+			"begin" => eval_begin(env, *cdr),
 			"cond" => todo!(),
 			_ => {
 			    apply(
@@ -60,6 +60,24 @@ fn eval_set(env: &mut Env, values: Value) -> EvalResult<Value> {
 	    }
 	}
 	_ => Err(EvalError::CannotSetNonSymbol(sym.clone()))
+    }
+}
+
+fn eval_begin(env: &mut Env, mut values: Value) -> EvalResult<Value> {
+    loop {
+	match values {
+	    Value::Pair { car, cdr } => {
+		let res = eval(env, *car)?;
+		if *cdr == Value::Empty {
+		    return Ok(res);
+		} else {
+		    values = *cdr;
+		}
+	    },
+	    // Default returned case of a '(begin)'.
+	    Value::Empty => return Ok(Value::False),
+	    _ => unreachable!("'begin' special forms must be inside a list"),
+	}
     }
 }
 
@@ -246,6 +264,45 @@ mod tests {
 		]),
 	    ).unwrap_err(),
 	    EvalError::CannotSetNonSymbol(Value::number(34.53)),
+	);
+    }
+
+    #[test]
+    fn evaluating_begin_works() {
+	let mut e = Env::new();
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("begin"),
+		    Value::string("one"),
+		    Value::string("two"),
+		]),
+	    ).unwrap(),
+	    Value::string("two"),
+	);
+
+	e.define("x", Value::Empty);
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("begin"),
+		    Value::list(&[
+			Value::symbol("set!"),
+			Value::symbol("x"),
+			Value::string("blah"),
+		    ]),
+		    Value::True
+		]),
+	    ).unwrap(),
+	    Value::True,
+	);
+	assert_eq!(e.lookup("x"), Some(Value::string("blah")));
+
+	assert_eq!(
+	    eval(&mut e, Value::list(&[Value::symbol("begin")])).unwrap(),
+	    Value::False,  // Default
 	);
     }
 }
