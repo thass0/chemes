@@ -13,6 +13,8 @@ pub enum Value {
     Symbol(String),
     Pair { car: Box<Value>, cdr: Box<Value> },
     Empty,
+    True,
+    False
 }
 
 impl Value {
@@ -48,6 +50,16 @@ impl Value {
         p
     }
 
+    /// Constructor for a list shaped like an 'if' special form.
+    pub fn if_(pred: &Self, cons: &Self, alt: &Self) -> Self {
+	Self::list(&[
+	    Self::Symbol("if".to_owned()),
+	    pred.clone(),
+	    cons.clone(),
+	    alt.clone()
+	])
+    }
+
     /// Get the 'car' of a pair value.
     pub fn car(&self) -> TypeResult<'_, &Value> {
         match self {
@@ -63,6 +75,20 @@ impl Value {
             _ => Err(TypeError::CdrExpectsPair(self)),
         }
     }
+
+    /// Get the 'cadr' of a pair value.
+    pub fn cadr(&self) -> TypeResult<'_, &Value> {
+	self.cdr()?.car()
+    }
+
+    /// Get the 'caddr' of a pair value.
+    pub fn caddr(&self) -> TypeResult<'_, &Value> {
+	self.cdr()?.cdr()?.car()
+    }
+
+    pub fn is_truthy(&self) -> bool {
+	*self != Value::False
+    }
 }
 
 impl fmt::Display for Value {
@@ -71,6 +97,8 @@ impl fmt::Display for Value {
             Value::String(s) => write!(f, "\"{s}\""),
             Value::Number(n) => write!(f, "{n}"),
             Value::Symbol(s) => write!(f, "{s}"),
+	    Value::True => write!(f, "true"),
+	    Value::False => write!(f, "false"),
             // TODO: Detect and display lists properly
             Value::Pair { car, cdr } => write!(f, "( {car} . {cdr})"),
             Value::Empty => write!(f, "()"),
@@ -169,5 +197,12 @@ mod tests {
             p.cdr().unwrap().cdr(),
             Err(TypeError::CdrExpectsPair(&Value::number(42)))
         );
+	assert_eq!(
+	    Value::True.cons(&Value::False),
+	    Value::Pair {
+		car: Box::new(Value::True),
+		cdr: Box::new(Value::False)
+	    },
+	);
     }
 }

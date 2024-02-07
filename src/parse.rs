@@ -36,7 +36,13 @@ where
         match &tok.kind {
             TokenKind::String(s) => Cont(Value::string(s)),
             TokenKind::Number(n) => Cont(Value::number(*n)),
-            TokenKind::Symbol(s) => Cont(Value::symbol(s)),
+            TokenKind::Symbol(s) => {
+		match s.as_str() {
+		    "true" | "#t" => Cont(Value::True),
+		    "false" | "#f" => Cont(Value::False),
+		    _ => Cont(Value::symbol(s))
+		}
+	    },
             TokenKind::LParen => {
                 // Recursively call this function until an `RParen` at
                 // the same level as this `LParen` returns an empty list.
@@ -108,6 +114,15 @@ mod tests {
             vec![Value::symbol("foo?")
                 .cons(&Value::symbol("bar.").cons(&Value::symbol("baz!").cons(&Value::Empty)))],
         );
+	assert_eq!(
+	    parse("(true #f false #t)").unwrap(),
+	    vec![Value::list(&[
+		Value::True,
+		Value::False,
+		Value::False,
+		Value::True,
+	    ])],
+	);
         assert_eq!(
             parse("(foo (bar \"x\") ((y z) 3))").unwrap(),
             vec![Value::list(&[

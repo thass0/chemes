@@ -105,7 +105,7 @@ impl Frame {
 
     fn values(&self) -> Values<'_, String, Value> {
 	self.vars.values()
-pp    }
+    }
 
     fn bind(&mut self, symbol: String, value: Value) {
 	self.vars.insert(symbol, value);
