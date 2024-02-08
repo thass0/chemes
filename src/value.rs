@@ -5,16 +5,29 @@ use alloc::fmt::Formatter;
 /// A Scheme value.
 use alloc::string::String;
 
-/// A Scheme value
-#[derive(Debug, Clone, PartialEq)]
+use alloc::rc::Rc;
+use core::cell::RefCell;
+
+use crate::env::Env;
+
+/// A Scheme value.
+#[derive(Clone)]
 pub enum Value {
     String(String),
     Number(Number),
     Symbol(String),
-    Pair { car: Box<Value>, cdr: Box<Value> },
+    Pair {
+        car: Box<Value>,
+        cdr: Box<Value>,
+    },
     Empty,
     True,
     False,
+    Lambda {
+        params: Box<Value>,
+        body: Box<Value>,
+        env: Rc<RefCell<Env>>,
+    },
 }
 
 impl Value {
@@ -75,6 +88,11 @@ impl Value {
     pub fn caddr(&self) -> Option<Value> {
         self.cdr()?.cdr()?.car()
     }
+
+    /// Turn this value into an iterator.
+    pub fn iter(self) -> impl core::iter::Iterator<Item = Self> {
+        self
+    }
 }
 
 impl fmt::Display for Value {
@@ -83,6 +101,13 @@ impl fmt::Display for Value {
             Value::String(s) => write!(f, "\"{s}\""),
             Value::Number(n) => write!(f, "{n}"),
             Value::Symbol(s) => write!(f, "{s}"),
+            Value::Lambda { params, .. } => {
+                write!(f, "<procedure (<anon>")?;
+                for param in params.clone().iter() {
+                    write!(f, " {param}")?;
+                }
+                write!(f, ")")
+            }
             Value::True => write!(f, "true"),
             Value::False => write!(f, "false"),
             // TODO: Detect and display lists properly
@@ -90,6 +115,65 @@ impl fmt::Display for Value {
                 write!(f, "( {car} . {cdr})")
             }
             Value::Empty => write!(f, "()"),
+        }
+    }
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::String(s) => write!(f, "String({s:?})"),
+            Value::Number(n) => write!(f, "Number({n:?})"),
+            Value::Symbol(s) => write!(f, "Symbol({s})"),
+            Value::Lambda { params, body, env } => {
+                write!(
+                    f,
+                    "Lambda {{ params: {params:?}, body: {body:?}, env: {:?} }}",
+                    env.as_ptr()
+                )
+            }
+            Value::True => write!(f, "True"),
+            Value::False => write!(f, "False"),
+            Value::Pair { car, cdr } => {
+                write!(f, "Pair {{ car: {car:?}, cdr: {cdr:?} }}")
+            }
+            Value::Empty => write!(f, "Empty"),
+        }
+    }
+}
+
+impl core::cmp::PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::String(s1), Value::String(s2)) => *s1 == *s2,
+            (Value::Number(n1), Value::Number(n2)) => *n1 == *n2,
+            (Value::Symbol(s1), Value::Symbol(s2)) => *s1 == *s2,
+            (
+                Value::Pair {
+                    car: car1,
+                    cdr: cdr1,
+                },
+                Value::Pair {
+                    car: car2,
+                    cdr: cdr2,
+                },
+            ) => *car1 == *car2 && *cdr1 == *cdr2,
+            (Value::Empty, Value::Empty) => true,
+            (Value::True, Value::True) => true,
+            (Value::False, Value::False) => true,
+            (
+                Value::Lambda {
+                    params: params1,
+                    body: body1,
+                    env: env1,
+                },
+                Value::Lambda {
+                    params: params2,
+                    body: body2,
+                    env: env2,
+                },
+            ) => *params1 == *params2 && *body1 == *body2 && env1.as_ptr() == env2.as_ptr(),
+            _ => false,
         }
     }
 }
@@ -128,6 +212,21 @@ impl fmt::Display for Number {
             Self::Int(i) => write!(f, "{i}"),
             Self::Rat { p, q } => write!(f, "{p}/{q}"),
             Self::Real(r) => write!(f, "{r}"),
+        }
+    }
+}
+
+impl core::iter::Iterator for Value {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.clone() {
+            Value::Pair { car, cdr } => {
+                *self = *cdr;
+                Some(*car)
+            }
+            Value::Empty => None,
+            v => Some(v),
         }
     }
 }
