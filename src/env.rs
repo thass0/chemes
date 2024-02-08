@@ -1,9 +1,9 @@
-use alloc::string::String;
-use alloc::collections::BTreeMap;
-use alloc::collections::btree_map::{Keys, Values};
-use alloc::vec::Vec;
-use alloc::vec;
 use alloc::borrow::ToOwned;
+use alloc::collections::btree_map::{Keys, Values};
+use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 
 use crate::value::Value;
 
@@ -25,7 +25,9 @@ pub enum SetResult {
 
 impl Env {
     pub fn new() -> Self {
-	Env { frames: vec![Frame::new()] }
+        Env {
+            frames: vec![Frame::new()],
+        }
     }
 
     // fn enclosing_environment(&self) -> Option<Self> {
@@ -40,24 +42,24 @@ impl Env {
 
     /// Add a new frame on top of the current environment.
     pub fn push(&mut self) {
-	self.frames.push(Frame::new());
+        self.frames.push(Frame::new());
     }
 
     /// Delete the top frame from the current environment.
     pub fn pop(&mut self) {
-	self.frames.pop();
+        self.frames.pop();
     }
 
     /// Return the value behind `symbol` bound in the current
     /// environment or `None` if the symbol is not bound.
     pub fn lookup<A: AsRef<str>>(&self, symbol: A) -> Option<Value> {
-	for frame in self.frames.iter().rev() {
-	    match frame.lookup(&symbol) {
-		Some(v) => return Some(v),
-		None => {},
-	    }
-	}
-	None
+        for frame in self.frames.iter().rev() {
+            match frame.lookup(&symbol) {
+                Some(v) => return Some(v),
+                None => {}
+            }
+        }
+        None
     }
 
     /// Change the value of `symbol` to `value`. If `symbol` is not bound
@@ -65,53 +67,55 @@ impl Env {
     /// changed. If the symbol is bound, and its value is updated,
     /// `Success` is returned.
     pub fn set<A: AsRef<str>>(&mut self, symbol: A, value: Value) -> SetResult {
-	for frame in self.frames.iter_mut().rev() {
-	    if frame.lookup(&symbol).is_some() {
-		frame.bind(symbol.as_ref().to_owned(), value);
-		return SetResult::Success;
-	    }
-	}
-	SetResult::Undefined
+        for frame in self.frames.iter_mut().rev() {
+            if frame.lookup(&symbol).is_some() {
+                frame.bind(symbol.as_ref().to_owned(), value);
+                return SetResult::Success;
+            }
+        }
+        SetResult::Undefined
     }
 
     /// Define `symbol` to `value` in the current environment. Overwrites
     /// the current value if `symbol` was defined before.
     pub fn define<A: AsRef<str>>(&mut self, symbol: A, value: Value) {
-	match self.frames.last_mut() {
-	    Some(frame) => {
-		frame.bind(symbol.as_ref().to_owned(), value);
-	    },
-	    None => unreachable!("an environment must have at least on frame"),
-	}
+        match self.frames.last_mut() {
+            Some(frame) => {
+                frame.bind(symbol.as_ref().to_owned(), value);
+            }
+            None => unreachable!("an environment must have at least on frame"),
+        }
     }
 }
 
 impl Frame {
     fn new() -> Frame {
-	Frame { vars: BTreeMap::new() }
+        Frame {
+            vars: BTreeMap::new(),
+        }
     }
 
     fn from<I: Iterator<Item = (String, Value)>>(vars: I) -> Frame {
-	let mut frame = Frame::new();
-	for (symbol, value) in vars {
-	    frame.bind(symbol, value);
-	}
-	frame
+        let mut frame = Frame::new();
+        for (symbol, value) in vars {
+            frame.bind(symbol, value);
+        }
+        frame
     }
 
     fn symbols(&self) -> Keys<'_, String, Value> {
-	self.vars.keys()
+        self.vars.keys()
     }
 
     fn values(&self) -> Values<'_, String, Value> {
-	self.vars.values()
+        self.vars.values()
     }
 
     fn bind(&mut self, symbol: String, value: Value) {
-	self.vars.insert(symbol, value);
+        self.vars.insert(symbol, value);
     }
 
     fn lookup<A: AsRef<str>>(&self, symbol: A) -> Option<Value> {
-	self.vars.get(symbol.as_ref()).cloned()
+        self.vars.get(symbol.as_ref()).cloned()
     }
 }

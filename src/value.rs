@@ -14,7 +14,7 @@ pub enum Value {
     Pair { car: Box<Value>, cdr: Box<Value> },
     Empty,
     True,
-    False
+    False,
 }
 
 impl Value {
@@ -68,12 +68,12 @@ impl Value {
 
     /// Get the 'cadr' of a pair value.
     pub fn cadr(&self) -> Option<Value> {
-	self.cdr()?.car()
+        self.cdr()?.car()
     }
 
     /// Get the 'caddr' of a pair value.
     pub fn caddr(&self) -> Option<Value> {
-	self.cdr()?.cdr()?.car()
+        self.cdr()?.cdr()?.car()
     }
 }
 
@@ -83,12 +83,12 @@ impl fmt::Display for Value {
             Value::String(s) => write!(f, "\"{s}\""),
             Value::Number(n) => write!(f, "{n}"),
             Value::Symbol(s) => write!(f, "{s}"),
-	    Value::True => write!(f, "true"),
-	    Value::False => write!(f, "false"),
+            Value::True => write!(f, "true"),
+            Value::False => write!(f, "false"),
             // TODO: Detect and display lists properly
             Value::Pair { car, cdr } => {
-		write!(f, "( {car} . {cdr})")
-	    },
+                write!(f, "( {car} . {cdr})")
+            }
             Value::Empty => write!(f, "()"),
         }
     }
@@ -154,20 +154,14 @@ mod tests {
                 }),
             },
         );
+        assert_eq!(p.cdr().unwrap().car(), None);
+        assert_eq!(p.cdr().unwrap().cdr(), None);
         assert_eq!(
-            p.cdr().unwrap().car(),
-            None
+            Value::True.cons(&Value::False),
+            Value::Pair {
+                car: Box::new(Value::True),
+                cdr: Box::new(Value::False)
+            },
         );
-        assert_eq!(
-            p.cdr().unwrap().cdr(),
-            None
-        );
-	assert_eq!(
-	    Value::True.cons(&Value::False),
-	    Value::Pair {
-		car: Box::new(Value::True),
-		cdr: Box::new(Value::False)
-	    },
-	);
     }
 }

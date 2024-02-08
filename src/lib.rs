@@ -8,6 +8,6 @@ mod lex;
 mod parse;
 pub use parse::*;
 
-mod value;
 mod env;
 mod eval;
+mod value;
