@@ -1,5 +1,4 @@
 use alloc::string::String;
-use alloc::borrow::ToOwned;
 
 use crate::env::Env;
 use crate::env::SetResult;
@@ -20,9 +19,9 @@ pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
 		Value::Symbol(ref s) => {
 		    match s.as_str() {
 			"set!" => eval_set(env, *cdr),
-			"define" => todo!(),
+			"define" => eval_define(env, *cdr),
 			"if" => eval_if(env, *cdr),
-			"lambda" => todo!(),
+			"lambda" => eval_lambda(env, *cdr),
 			"begin" => eval_begin(env, *cdr),
 			"cond" => todo!(),
 			_ => {
@@ -46,10 +45,10 @@ pub fn eval(env: &mut Env, value: Value) -> EvalResult<Value> {
 }
 
 fn eval_set(env: &mut Env, values: Value) -> EvalResult<Value> {
-    let sym = values
+    let target = values
         .car()
         .ok_or(EvalError::SetMissingSymbol)?;
-    match sym {
+    match target {
 	Value::Symbol(s) => {
 	    let val = values
 		.cadr()
@@ -59,8 +58,45 @@ fn eval_set(env: &mut Env, values: Value) -> EvalResult<Value> {
 		SetResult::Success => Ok(Value::symbol("done")),
 	    }
 	}
-	_ => Err(EvalError::CannotSetNonSymbol(sym))
+	_ => Err(EvalError::CannotSetNonSymbol(target))
     }
+}
+
+fn eval_define(env: &mut Env, values: Value) -> EvalResult<Value> {
+    let target = values
+        .car()
+        .ok_or(EvalError::DefineMissingTarget)?;
+    match target {
+	Value::Pair { car, cdr } => {
+	    if let Value::Symbol(sym) = *car {
+		let body = values
+		    .cadr()
+		    .ok_or(EvalError::DefineMissingBody)?;
+
+		let lambda = Value::list(&[
+		    Value::symbol("lambda"),
+		    *cdr,
+		    body,
+		]);
+		env.define(sym, lambda.clone());
+		Ok(lambda)
+	    } else {
+		Err(EvalError::CannotDefineNonSymbol(*car))
+	    }
+	},
+	Value::Symbol(sym) => {
+	    let value = values
+		.cadr()
+		.ok_or(EvalError::DefineMissingValue)?;
+	    env.define(&sym, value.clone());
+	    Ok(value)
+	},
+	_ => Err(EvalError::CannotDefineNonSymbol(target)),
+    }
+}
+
+fn eval_lambda(_: &mut Env, values: Value) -> EvalResult<Value> {
+    Ok(Value::symbol("lambda").cons(&values))
 }
 
 fn eval_begin(env: &mut Env, mut values: Value) -> EvalResult<Value> {
@@ -131,7 +167,12 @@ pub enum EvalError {
     CannotSetNonSymbol(Value),
     SetMissingValue,
     SetUndefined(String),
+    DefineMissingTarget,
+    CannotDefineNonSymbol(Value),
+    DefineMissingValue,
+    DefineMissingBody,
 }
+
 
 pub fn default_env() -> Env {
     let e = Env::new();
@@ -145,6 +186,8 @@ pub fn default_env() -> Env {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::borrow::ToOwned;
+
 
     #[test]
     fn self_evaluating_values_self_evaluate() {
@@ -302,5 +345,122 @@ mod tests {
 	    eval(&mut e, Value::list(&[Value::symbol("begin")])).unwrap(),
 	    Value::False,  // Default
 	);
+    }
+
+    #[test]
+    fn evaluating_lambda_works() {
+	let mut e = Env::new();
+	let lambda = Value::list(&[
+	    Value::symbol("lambda"),
+	    Value::list(&[
+		Value::symbol("x"),
+		Value::symbol("blah"),
+	    ]),
+	    Value::number(43),
+	]);
+	// Lambda should just be passed on until they are applied.
+	assert_eq!(eval(&mut e, lambda.clone()).unwrap(), lambda);
+    }
+
+    #[test]
+    fn evaluating_define_works() {
+	let mut e = Env::new();
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("define"),
+		    Value::list(&[
+			Value::symbol("second"),
+			Value::symbol("x"),
+			Value::symbol("y"),
+		    ]),
+		    Value::symbol("y"),
+		]),
+	    ).unwrap(),
+	    Value::list(&[
+		Value::symbol("lambda"),
+		Value::list(&[
+		    Value::symbol("x"),
+		    Value::symbol("y"),
+		]),
+		Value::symbol("y"),
+	    ]),
+	);
+
+	assert_eq!(
+	    e.lookup("second").unwrap(),
+	    Value::list(&[
+		Value::symbol("lambda"),
+		Value::list(&[
+		    Value::symbol("x"),
+		    Value::symbol("y"),
+		]),
+		Value::symbol("y")
+	    ]),
+	);
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("define"),
+		    Value::symbol("some-number"),
+		    Value::number(54),
+		]),
+	    ).unwrap(),
+	    Value::number(54),
+	);
+	assert_eq!(e.lookup("some-number"), Some(Value::number(54)));
+
+	assert_eq!(
+	    eval(&mut e, Value::list(&[Value::symbol("define")])).unwrap_err(),
+	    EvalError::DefineMissingTarget,
+	);
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("define"),
+		    Value::list(&[
+			Value::number(1),
+		    ]),
+		])).unwrap_err(),
+	    EvalError::CannotDefineNonSymbol(Value::number(1)),
+	);
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("define"),
+		    Value::number(1),
+		])).unwrap_err(),
+	    EvalError::CannotDefineNonSymbol(Value::number(1)),
+	);
+
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("define"),
+		    Value::symbol("blah"),
+		])).unwrap_err(),
+	    EvalError::DefineMissingValue,
+	);
+
+	assert_eq!(
+	    eval(
+		&mut e,
+		Value::list(&[
+		    Value::symbol("define"),
+		    Value::list(&[
+			Value::symbol("blah"),
+		    ]),
+		])).unwrap_err(),
+	    EvalError::DefineMissingBody,
+	);	
     }
 }
