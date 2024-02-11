@@ -111,7 +111,7 @@ impl fmt::Display for Value {
             Value::True => write!(f, "true"),
             Value::False => write!(f, "false"),
             Value::Pair { car, cdr } => {
-		// TODO: Detect lists and print them properly.
+                // TODO: Detect lists and print them properly.
                 write!(f, "( {car} . {cdr})")
             }
             Value::Empty => write!(f, "()"),
@@ -188,10 +188,10 @@ impl core::iter::Iterator for Value {
                 Some(*car)
             }
             Value::Empty => None,
-	    v => {
-		*self = Value::Empty;
-		Some(v)
-	    }
+            v => {
+                *self = Value::Empty;
+                Some(v)
+            }
         }
     }
 }
