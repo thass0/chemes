@@ -110,8 +110,8 @@ impl fmt::Display for Value {
             }
             Value::True => write!(f, "true"),
             Value::False => write!(f, "false"),
-            // TODO: Detect and display lists properly
             Value::Pair { car, cdr } => {
+		// TODO: Detect lists and print them properly.
                 write!(f, "( {car} . {cdr})")
             }
             Value::Empty => write!(f, "()"),
@@ -178,6 +178,24 @@ impl core::cmp::PartialEq for Value {
     }
 }
 
+impl core::iter::Iterator for Value {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.clone() {
+            Value::Pair { car, cdr } => {
+                *self = *cdr;
+                Some(*car)
+            }
+            Value::Empty => None,
+	    v => {
+		*self = Value::Empty;
+		Some(v)
+	    }
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Number {
     Int(i32),
@@ -212,21 +230,6 @@ impl fmt::Display for Number {
             Self::Int(i) => write!(f, "{i}"),
             Self::Rat { p, q } => write!(f, "{p}/{q}"),
             Self::Real(r) => write!(f, "{r}"),
-        }
-    }
-}
-
-impl core::iter::Iterator for Value {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.clone() {
-            Value::Pair { car, cdr } => {
-                *self = *cdr;
-                Some(*car)
-            }
-            Value::Empty => None,
-            v => Some(v),
         }
     }
 }
