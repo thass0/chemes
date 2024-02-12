@@ -20,7 +20,7 @@ pub fn eval(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
             .borrow()
             .lookup(&s)
             .ok_or_else(|| EvalError::Undefined(s)),
-        Value::Pair { car, cdr } => match *car {
+        Value::Pair(car, cdr) => match *car {
             Value::Symbol(ref s) => match s.as_str() {
                 "set!" => eval_set(env, *cdr),
                 "define" => eval_define(env, *cdr),
@@ -53,7 +53,7 @@ fn eval_set(env: Rc<RefCell<Env>>, values: Value) -> EvalResult<Value> {
 fn eval_define(env: Rc<RefCell<Env>>, values: Value) -> EvalResult<Value> {
     let target = values.car().ok_or(EvalError::DefineMissingTarget)?;
     match target {
-        Value::Pair { car, cdr } => {
+        Value::Pair(car, cdr) => {
             if let Value::Symbol(sym) = *car {
                 let body = values.cadr().ok_or(EvalError::DefineMissingBody)?;
                 let lambda = Value::Lambda {
@@ -89,7 +89,7 @@ fn eval_lambda(env: Rc<RefCell<Env>>, values: Value) -> EvalResult<Value> {
 fn eval_begin(env: Rc<RefCell<Env>>, mut values: Value) -> EvalResult<Value> {
     loop {
         match values {
-            Value::Pair { car, cdr } => {
+            Value::Pair(car, cdr) => {
                 let res = eval(env.clone(), *car)?;
                 if *cdr == Value::Empty {
                     return Ok(res);
@@ -123,7 +123,7 @@ fn eval_if(env: Rc<RefCell<Env>>, values: Value) -> EvalResult<Value> {
 
 fn eval_sequence(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
     match value {
-        Value::Pair { car, cdr } => Ok(eval(env.clone(), *car)?.cons(&eval_sequence(env, *cdr)?)),
+        Value::Pair(car, cdr) => Ok(eval(env.clone(), *car)?.cons(&eval_sequence(env, *cdr)?)),
         Value::Empty => Ok(Value::Empty),
         _ => Err(EvalError::NotAList(value)),
     }

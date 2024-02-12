@@ -16,10 +16,7 @@ pub enum Value {
     String(String),
     Number(Number),
     Symbol(String),
-    Pair {
-        car: Box<Value>,
-        cdr: Box<Value>,
-    },
+    Pair(Box<Value>, Box<Value>),
     Empty,
     True,
     False,
@@ -48,10 +45,7 @@ impl Value {
 
     /// Construct a pair value.
     pub fn cons(&self, other: &Self) -> Self {
-        Self::Pair {
-            car: Box::new(self.clone()),
-            cdr: Box::new(other.clone()),
-        }
+        Self::Pair(Box::new(self.clone()), Box::new(other.clone()))
     }
 
     /// Construct a list of values (as pairs).
@@ -66,7 +60,7 @@ impl Value {
     /// Get the 'car' of a pair value.
     pub fn car(&self) -> Option<Value> {
         match self {
-            Value::Pair { car, cdr: _ } => Some(*car.clone()),
+            Value::Pair(car, _) => Some(*car.clone()),
             _ => None,
         }
     }
@@ -74,7 +68,7 @@ impl Value {
     /// Get the 'cdr' of a pair value.
     pub fn cdr(&self) -> Option<Value> {
         match self {
-            Value::Pair { car: _, cdr } => Some(*cdr.clone()),
+            Value::Pair(_, cdr) => Some(*cdr.clone()),
             _ => None,
         }
     }
@@ -110,7 +104,7 @@ impl fmt::Display for Value {
             }
             Value::True => write!(f, "true"),
             Value::False => write!(f, "false"),
-            Value::Pair { car, cdr } => {
+            Value::Pair(car, cdr) => {
                 // TODO: Detect lists and print them properly.
                 write!(f, "( {car} . {cdr})")
             }
@@ -134,7 +128,7 @@ impl fmt::Debug for Value {
             }
             Value::True => write!(f, "True"),
             Value::False => write!(f, "False"),
-            Value::Pair { car, cdr } => {
+            Value::Pair(car, cdr) => {
                 write!(f, "Pair {{ car: {car:?}, cdr: {cdr:?} }}")
             }
             Value::Empty => write!(f, "Empty"),
@@ -148,16 +142,7 @@ impl core::cmp::PartialEq for Value {
             (Value::String(s1), Value::String(s2)) => *s1 == *s2,
             (Value::Number(n1), Value::Number(n2)) => *n1 == *n2,
             (Value::Symbol(s1), Value::Symbol(s2)) => *s1 == *s2,
-            (
-                Value::Pair {
-                    car: car1,
-                    cdr: cdr1,
-                },
-                Value::Pair {
-                    car: car2,
-                    cdr: cdr2,
-                },
-            ) => *car1 == *car2 && *cdr1 == *cdr2,
+            (Value::Pair(car1, cdr1), Value::Pair(car2, cdr2)) => *car1 == *car2 && *cdr1 == *cdr2,
             (Value::Empty, Value::Empty) => true,
             (Value::True, Value::True) => true,
             (Value::False, Value::False) => true,
@@ -183,7 +168,7 @@ impl core::iter::Iterator for Value {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.clone() {
-            Value::Pair { car, cdr } => {
+            Value::Pair(car, cdr) => {
                 *self = *cdr;
                 Some(*car)
             }
@@ -245,25 +230,19 @@ mod tests {
         assert_eq!(p.cdr(), Some(Value::number(42)));
         assert_eq!(
             Value::list(&[Value::string("a"), Value::number(4), Value::Empty]),
-            Value::Pair {
-                car: Box::new(Value::string("a")),
-                cdr: Box::new(Value::Pair {
-                    car: Box::new(Value::number(4)),
-                    cdr: Box::new(Value::Pair {
-                        car: Box::new(Value::Empty),
-                        cdr: Box::new(Value::Empty),
-                    }),
-                }),
-            },
+            Value::Pair(
+                Box::new(Value::string("a")),
+                Box::new(Value::Pair(
+                    Box::new(Value::number(4)),
+                    Box::new(Value::Pair(Box::new(Value::Empty), Box::new(Value::Empty),)),
+                )),
+            ),
         );
         assert_eq!(p.cdr().unwrap().car(), None);
         assert_eq!(p.cdr().unwrap().cdr(), None);
         assert_eq!(
             Value::True.cons(&Value::False),
-            Value::Pair {
-                car: Box::new(Value::True),
-                cdr: Box::new(Value::False)
-            },
+            Value::Pair(Box::new(Value::True), Box::new(Value::False)),
         );
     }
 }
