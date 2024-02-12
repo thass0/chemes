@@ -16,3 +16,6 @@ pub use eval::*;
 
 mod value;
 pub use value::*;
+
+mod builtin;
+pub use builtin::default_env;

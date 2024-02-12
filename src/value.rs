@@ -2,13 +2,13 @@ use alloc::borrow::*;
 use alloc::boxed::Box;
 use alloc::fmt;
 use alloc::fmt::Formatter;
-/// A Scheme value.
-use alloc::string::String;
-
 use alloc::rc::Rc;
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::cell::RefCell;
 
 use crate::env::Env;
+use crate::eval::EvalError;
 
 /// A Scheme value.
 #[derive(Clone)]
@@ -24,6 +24,10 @@ pub enum Value {
         params: Box<Value>,
         body: Box<Value>,
         env: Rc<RefCell<Env>>,
+    },
+    Builtin {
+        n_params: usize,
+        func: Rc<dyn Fn(Vec<Value>) -> Result<Value, EvalError>>,
     },
 }
 
@@ -96,11 +100,18 @@ impl fmt::Display for Value {
             Value::Number(n) => write!(f, "{n}"),
             Value::Symbol(s) => write!(f, "{s}"),
             Value::Lambda { params, .. } => {
-                write!(f, "<procedure (<anon>")?;
+                write!(f, "<procedure> (<?>")?;
                 for param in params.clone().iter() {
                     write!(f, " {param}")?;
                 }
-                write!(f, ")")
+                Ok(())
+            }
+            Value::Builtin { n_params, .. } => {
+                if *n_params == 1 {
+                    write!(f, "<builtin procedure of 1 arg>")
+                } else {
+                    write!(f, "<builtin procedure of {n_params} args>")
+                }
             }
             Value::True => write!(f, "true"),
             Value::False => write!(f, "false"),
@@ -125,6 +136,9 @@ impl fmt::Debug for Value {
                     "Lambda {{ params: {params:?}, body: {body:?}, env: {:?} }}",
                     env.as_ptr()
                 )
+            }
+            Value::Builtin { n_params, .. } => {
+                write!(f, "Builtin {{ n_params: {n_params}, func: .. }}",)
             }
             Value::True => write!(f, "True"),
             Value::False => write!(f, "False"),

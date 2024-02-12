@@ -14,6 +14,7 @@ pub fn eval(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
         s @ Value::String(_) => Ok(s),
         n @ Value::Number(_) => Ok(n),
         l @ Value::Lambda { .. } => Ok(l),
+        b @ Value::Builtin { .. } => Ok(b),
         Value::True => Ok(Value::True),
         Value::False => Ok(Value::False),
         Value::Symbol(s) => env
@@ -148,6 +149,7 @@ pub enum EvalError {
     DefineMissingBody,
     LambdaMissingParams,
     LambdaMissingBody,
+    TypeError, // TODO: Add more details.
 
     // For apply
     TooManyArgs(usize),
@@ -156,21 +158,29 @@ pub enum EvalError {
     CannotApplyNonLambda(Value),
 }
 
+fn check_params(n_params: usize, n_args: usize) -> EvalResult<()> {
+    match n_params.cmp(&n_args) {
+        Ordering::Greater => {
+            return Err(EvalError::TooManyParams(n_params - n_args));
+        }
+        Ordering::Less => {
+            return Err(EvalError::TooManyArgs(n_args - n_params));
+        }
+        Ordering::Equal => {}
+    }
+    Ok(())
+}
+
 fn apply(lambda: Value, args: Value) -> EvalResult<Value> {
+    let args = args.iter().collect::<Vec<Value>>();
     match lambda {
+        Value::Builtin { n_params, func } => {
+            check_params(n_params, args.len())?;
+            func(args)
+        }
         Value::Lambda { params, body, env } => {
             let params = params.iter().collect::<Vec<Value>>();
-            let args = args.iter().collect::<Vec<Value>>();
-
-            match params.len().cmp(&args.len()) {
-                Ordering::Greater => {
-                    return Err(EvalError::TooManyParams(params.len() - args.len()));
-                }
-                Ordering::Less => {
-                    return Err(EvalError::TooManyArgs(args.len() - params.len()));
-                }
-                Ordering::Equal => {}
-            }
+            check_params(params.len(), args.len())?;
 
             let syms = {
                 let mut syms = Vec::with_capacity(params.len());
@@ -508,6 +518,28 @@ mod tests {
             )
             .unwrap(),
             Value::string("Everyone just passed me around ):"),
+        );
+    }
+
+    use crate::builtin::default_env;
+
+    #[test]
+    fn evaluating_builtin_procedures_works() {
+        let e = Rc::new(RefCell::new(default_env()));
+        assert_eq!(
+            eval(
+                e.clone(),
+                Value::list(&[
+                    Value::symbol("cons"),
+                    Value::string("Cars drive on roads"),
+                    Value::string("A cdr certainly doesn't drive!"),
+                ]),
+            )
+            .unwrap(),
+            Value::Pair(
+                Box::new(Value::string("Cars drive on roads")),
+                Box::new(Value::string("A cdr certainly doesn't drive!")),
+            ),
         );
     }
 }
