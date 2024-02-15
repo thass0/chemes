@@ -53,6 +53,12 @@ impl Value {
     }
 
     /// Construct a list of values (as pairs).
+    ///
+    /// # Example
+    /// ```
+    /// use chemes::Value;
+    /// assert_eq!(Value::list(&[]), Value::Empty);
+    /// ```
     pub fn list(elems: &[Self]) -> Self {
         let mut p = Value::Empty;
         for elem in elems.iter().rev() {

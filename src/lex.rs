@@ -9,16 +9,25 @@ use libm::{exp10, floor, log10};
 
 use crate::value::Number;
 
-pub fn lex(src: &str) -> Vec<Token> {
+pub fn lex(src: &str) -> Result<Vec<Token>, InvalidChar> {
     let mut cursor = Cursor::new(src);
     let mut tokens = Vec::new();
-    let mut tok = cursor.advance();
+    let mut tok = cursor.advance()?;
     while !tok.is_eof() {
         tokens.push(tok);
-        tok = cursor.advance();
+        tok = cursor.advance()?;
     }
     tokens.push(tok);
-    tokens
+    Ok(tokens)
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct InvalidChar(char);
+
+impl fmt::Display for InvalidChar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid character '{}'", self.0)
+    }
 }
 
 struct Cursor<'a> {
@@ -34,10 +43,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn advance(&mut self) -> Token {
+    fn advance(&mut self) -> Result<Token, InvalidChar> {
         let first = match self.peek() {
             Some(c) => c,
-            None => return Token::new(TokenKind::Eof, self.at),
+            None => return Ok(Token::new(TokenKind::Eof, self.at)),
         };
 
         match first {
@@ -49,11 +58,13 @@ impl<'a> Cursor<'a> {
                 self.eat_comment();
                 self.advance() // Recursive call.
             }
-            '(' => Token::new(TokenKind::LParen, self.bump()),
-            ')' => Token::new(TokenKind::RParen, self.bump()),
-            '"' => self.string(),
-            ch if ch.is_ascii_digit() => self.number(),
-            _ => self.symbol(),
+            '(' => Ok(Token::new(TokenKind::LParen, self.bump())),
+            ')' => Ok(Token::new(TokenKind::RParen, self.bump())),
+            '\'' => Ok(Token::new(TokenKind::Quote, self.bump())),
+            '"' => Ok(self.string()),
+            ch if ch.is_ascii_digit() => Ok(self.number()),
+            ch if is_symbol_char(ch) => Ok(self.symbol()),
+            ch => Err(InvalidChar(ch)),
         }
     }
 
@@ -191,6 +202,7 @@ impl Token {
 pub enum TokenKind {
     LParen,
     RParen,
+    Quote,
     Number(Number),
     String(String),
     Symbol(String),
@@ -248,7 +260,8 @@ mod tests {
       ((= n 1) 1)
       (else
         (+ (fib (- n 1))
-           (fib (- n 2))))))"#),
+           (fib (- n 2))))))"#)
+            .unwrap(),
             vec![
                 Token {
                     kind: LParen,
@@ -558,12 +571,12 @@ mod tests {
     #[test]
     fn eating_whitespace_works() {
         assert_eq!(
-            lex("   \t \n \n\t"),
+            lex("   \t \n \n\t").unwrap(),
             vec![Token::new(TokenKind::Eof, Position::new(3, 2))],
         );
 
         assert_eq!(
-            lex(" ( \n )\t"),
+            lex(" ( \n )\t").unwrap(),
             vec![
                 Token::new(TokenKind::LParen, Position::new(1, 2)),
                 Token::new(TokenKind::RParen, Position::new(2, 2)),
@@ -575,7 +588,7 @@ mod tests {
     #[test]
     fn eating_comments_works() {
         assert_eq!(
-            lex("; blah\n;; blah blah\n;;; blah ;;;"),
+            lex("; blah\n;; blah blah\n;;; blah ;;;").unwrap(),
             vec![Token::new(TokenKind::Eof, Position::new(3, 13)),]
         );
     }
@@ -585,7 +598,7 @@ mod tests {
         let s1 = "I'm so bad at thinking of examples, I might cry!";
 
         assert_eq!(
-            lex(&format!("\"{s1}\"")),
+            lex(&format!("\"{s1}\"")).unwrap(),
             vec![
                 Token::new(TokenKind::String(s1.to_owned()), Position::new(1, 1)),
                 Token::new(TokenKind::Eof, Position::new(1, 51)),
@@ -593,7 +606,7 @@ mod tests {
         );
 
         assert_eq!(
-            lex(&format!("(\"{s1}\")")),
+            lex(&format!("(\"{s1}\")")).unwrap(),
             vec![
                 Token::new(TokenKind::LParen, Position::new(1, 1)),
                 Token::new(TokenKind::String(s1.to_owned()), Position::new(1, 2)),
@@ -605,7 +618,7 @@ mod tests {
         let s2 = "In a string,\nthere can be anything: \t even: ().\n";
 
         assert_eq!(
-            lex(&format!("\"{s2}\"")),
+            lex(&format!("\"{s2}\"")).unwrap(),
             vec![
                 Token::new(TokenKind::String(s2.to_owned()), Position::new(1, 1)),
                 Token::new(TokenKind::Eof, Position::new(3, 2)),
@@ -616,7 +629,7 @@ mod tests {
     #[test]
     fn lexing_numbers_works() {
         assert_eq!(
-            lex("515 69343575 020000 32.3426 32/3 9/2"),
+            lex("515 69343575 020000 32.3426 32/3 9/2").unwrap(),
             vec![
                 Token::new(TokenKind::Number(515.into()), Position::new(1, 1)),
                 Token::new(TokenKind::Number(69343575.into()), Position::new(1, 5)),
@@ -642,7 +655,7 @@ mod tests {
     #[test]
     fn lexing_symbols_works() {
         assert_eq!(
-            lex("abc? blah-symbol symbols,are.special!"),
+            lex("abc? blah-symbol symbols,are.special!").unwrap(),
             vec![
                 Token::new(TokenKind::Symbol("abc?".to_owned()), Position::new(1, 1),),
                 Token::new(
@@ -654,6 +667,26 @@ mod tests {
                     Position::new(1, 18)
                 ),
                 Token::new(TokenKind::Eof, Position::new(1, 38)),
+            ]
+        )
+    }
+
+    #[test]
+    fn lexing_quotes_works() {
+        assert_eq!(
+            lex("''('('blah'wow)").unwrap(),
+            vec![
+                Token::new(TokenKind::Quote, Position::new(1, 1)),
+                Token::new(TokenKind::Quote, Position::new(1, 2)),
+                Token::new(TokenKind::LParen, Position::new(1, 3)),
+                Token::new(TokenKind::Quote, Position::new(1, 4)),
+                Token::new(TokenKind::LParen, Position::new(1, 5)),
+                Token::new(TokenKind::Quote, Position::new(1, 6)),
+                Token::new(TokenKind::Symbol("blah".to_owned()), Position::new(1, 7)),
+                Token::new(TokenKind::Quote, Position::new(1, 11)),
+                Token::new(TokenKind::Symbol("wow".to_owned()), Position::new(1, 12)),
+                Token::new(TokenKind::RParen, Position::new(1, 15)),
+                Token::new(TokenKind::Eof, Position::new(1, 16)),
             ]
         )
     }

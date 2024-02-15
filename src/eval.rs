@@ -28,12 +28,13 @@ pub fn eval(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
                 "if" => eval_if(env, *cdr),
                 "lambda" => eval_lambda(env, *cdr),
                 "begin" => eval_begin(env, *cdr),
+                "quote" => eval_quote(*cdr),
                 "cond" => todo!(),
                 _ => apply(eval(env.clone(), *car)?, eval_sequence(env, *cdr)?),
             },
             _ => apply(eval(env.clone(), *car)?, eval_sequence(env, *cdr)?),
         },
-        Value::Empty => Ok(Value::Empty),
+        Value::Empty => Err(EvalError::LiteralEmptyList),
     }
 }
 
@@ -105,6 +106,16 @@ fn eval_begin(env: Rc<RefCell<Env>>, mut values: Value) -> EvalResult<Value> {
     }
 }
 
+fn eval_quote(values: Value) -> EvalResult<Value> {
+    let q = values.car().ok_or(EvalError::QuoteMissingValue)?;
+    let e = values.cdr().ok_or(EvalError::QuoteMissingValue)?;
+    if e == Value::Empty {
+        Ok(q)
+    } else {
+        Err(EvalError::QuoteTooManyValues)
+    }
+}
+
 fn eval_if(env: Rc<RefCell<Env>>, values: Value) -> EvalResult<Value> {
     let pred = values.car().ok_or(EvalError::IfMissingPredicate)?;
     let cons = values.cadr().ok_or(EvalError::IfMissingConsequent)?;
@@ -150,6 +161,9 @@ pub enum EvalError {
     LambdaMissingParams,
     LambdaMissingBody,
     TypeError, // TODO: Add more details.
+    QuoteMissingValue,
+    QuoteTooManyValues,
+    LiteralEmptyList,
 
     // For apply
     TooManyArgs(usize),
@@ -540,6 +554,68 @@ mod tests {
                 Box::new(Value::string("Cars drive on roads")),
                 Box::new(Value::string("A cdr certainly doesn't drive!")),
             ),
+        );
+    }
+
+    #[test]
+    fn evaluating_quotes_works() {
+        let e = Rc::new(RefCell::new(Env::new()));
+        assert_eq!(
+            eval(
+                e.clone(),
+                Value::list(&[
+                    Value::symbol("quote"),
+                    Value::list(&[Value::number(1), Value::symbol("blah"),]),
+                ]),
+            )
+            .unwrap(),
+            Value::list(&[Value::number(1), Value::symbol("blah")]),
+        );
+
+        assert_eq!(
+            eval(
+                e.clone(),
+                Value::list(&[Value::symbol("quote"), Value::symbol("x"),])
+            )
+            .unwrap(),
+            Value::symbol("x"),
+        );
+
+        assert_eq!(
+            eval(
+                e.clone(),
+                Value::list(&[Value::symbol("quote"), Value::list(&[]),]),
+            )
+            .unwrap(),
+            Value::Empty,
+        );
+
+        assert_eq!(
+            eval(e.clone(), Value::list(&[Value::symbol("quote")]),).unwrap_err(),
+            EvalError::QuoteMissingValue,
+        );
+
+        assert_eq!(
+            eval(
+                e.clone(),
+                Value::list(&[Value::symbol("quote"), Value::number(1), Value::number(2),]),
+            )
+            .unwrap_err(),
+            EvalError::QuoteTooManyValues,
+        );
+    }
+
+    #[test]
+    fn reject_unquoted_empty_list() {
+        let e = Rc::new(RefCell::new(Env::new()));
+        assert_eq!(
+            eval(e.clone(), Value::Empty,).unwrap_err(),
+            EvalError::LiteralEmptyList,
+        );
+
+        assert_eq!(
+            eval(e.clone(), Value::list(&[Value::Empty,]),).unwrap_err(),
+            EvalError::LiteralEmptyList,
         );
     }
 }
