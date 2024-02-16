@@ -25,10 +25,7 @@ pub enum Value {
         body: Box<Value>,
         env: Rc<RefCell<Env>>,
     },
-    Builtin {
-        n_params: usize,
-        func: Rc<dyn Fn(Vec<Value>) -> Result<Value, EvalError>>,
-    },
+    Builtin(Rc<dyn Fn(Vec<Value>) -> Result<Value, EvalError>>),
 }
 
 impl Value {
@@ -65,6 +62,23 @@ impl Value {
             p = elem.cons(&p);
         }
         p
+    }
+
+    /// Construct a quoted value.
+    ///
+    /// # Example
+    /// ```
+    /// use chemes::Value;
+    /// assert_eq!(
+    ///   Value::quote(Value::symbol("x")),
+    ///   Value::list(&[
+    ///     Value::symbol("quote"),
+    ///     Value::symbol("x"),
+    ///   ])
+    /// );
+    /// ```
+    pub fn quote(v: Value) -> Self {
+        Value::list(&[Value::symbol("quote"), v.clone()])
     }
 
     /// Get the 'car' of a pair value.
@@ -112,12 +126,8 @@ impl fmt::Display for Value {
                 }
                 Ok(())
             }
-            Value::Builtin { n_params, .. } => {
-                if *n_params == 1 {
-                    write!(f, "<builtin procedure of 1 arg>")
-                } else {
-                    write!(f, "<builtin procedure of {n_params} args>")
-                }
+            Value::Builtin(_) => {
+                write!(f, "<builtin procedure>")
             }
             Value::True => write!(f, "true"),
             Value::False => write!(f, "false"),
@@ -143,9 +153,7 @@ impl fmt::Debug for Value {
                     env.as_ptr()
                 )
             }
-            Value::Builtin { n_params, .. } => {
-                write!(f, "Builtin {{ n_params: {n_params}, func: .. }}",)
-            }
+            Value::Builtin(_) => write!(f, "Builtin(_)"),
             Value::True => write!(f, "True"),
             Value::False => write!(f, "False"),
             Value::Pair(car, cdr) => {

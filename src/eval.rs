@@ -141,7 +141,7 @@ fn eval_sequence(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
     }
 }
 
-type EvalResult<T> = Result<T, EvalError>;
+pub type EvalResult<T> = Result<T, EvalError>;
 
 // TODO: Add sources to the eval errors.
 #[derive(Debug, Clone, PartialEq)]
@@ -188,10 +188,7 @@ fn check_params(n_params: usize, n_args: usize) -> EvalResult<()> {
 fn apply(lambda: Value, args: Value) -> EvalResult<Value> {
     let args = args.iter().collect::<Vec<Value>>();
     match lambda {
-        Value::Builtin { n_params, func } => {
-            check_params(n_params, args.len())?;
-            func(args)
-        }
+        Value::Builtin(func) => func(args),
         Value::Lambda { params, body, env } => {
             let params = params.iter().collect::<Vec<Value>>();
             check_params(params.len(), args.len())?;
