@@ -11,6 +11,8 @@ pub use parse::*;
 mod env;
 pub use env::*;
 
+mod syntax;
+
 mod eval;
 pub use eval::*;
 

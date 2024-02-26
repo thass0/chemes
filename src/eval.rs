@@ -7,6 +7,7 @@ use core::cmp::Ordering;
 use core::iter::zip;
 
 use crate::env::Env;
+use crate::syntax;
 use crate::value::Value;
 
 pub fn eval(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
@@ -29,7 +30,7 @@ pub fn eval(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
                 "lambda" => eval_lambda(env, *cdr),
                 "begin" => eval_begin(env, *cdr),
                 "quote" => eval_quote(*cdr),
-                "cond" => todo!(),
+                "cond" => eval(env, syntax::cond(*cdr)?),
                 _ => apply(eval(env.clone(), *car)?, eval_sequence(env, *cdr)?),
             },
             _ => apply(eval(env.clone(), *car)?, eval_sequence(env, *cdr)?),
@@ -170,6 +171,15 @@ pub enum EvalError {
     TooManyParams(usize),
     NonSymbolParam(Value),
     CannotApplyNonLambda(Value),
+
+    // Syntax error
+    Syntax(syntax::SyntaxError),
+}
+
+impl From<syntax::SyntaxError> for EvalError {
+    fn from(s: syntax::SyntaxError) -> Self {
+        Self::Syntax(s)
+    }
 }
 
 fn check_params(n_params: usize, n_args: usize) -> EvalResult<()> {
@@ -532,10 +542,9 @@ mod tests {
         );
     }
 
-    use crate::builtin::default_env;
-
     #[test]
     fn evaluating_builtin_procedures_works() {
+        use crate::builtin::default_env;
         let e = Rc::new(RefCell::new(default_env()));
         assert_eq!(
             eval(
@@ -600,6 +609,123 @@ mod tests {
             .unwrap_err(),
             EvalError::QuoteTooManyValues,
         );
+    }
+
+    #[test]
+    fn evaluating_cond_works() {
+        {
+            // Run the initial path.
+            let e = Rc::new(RefCell::new(Env::new()));
+            e.borrow_mut().define("x", Value::number(1));
+            e.borrow_mut().define("y", Value::number(2));
+            e.borrow_mut().define("z", Value::number(3));
+            assert_eq!(
+                eval(
+                    e.clone(),
+                    Value::list(&[
+                        Value::symbol("cond"),
+                        Value::list(&[
+                            Value::symbol("x"),
+                            Value::list(&[
+                                Value::symbol("set!"),
+                                Value::symbol("y"),
+                                Value::number(4),
+                            ]),
+                            Value::symbol("z"),
+                        ]),
+                    ])
+                )
+                .unwrap(),
+                Value::number(3),
+            );
+            assert_eq!(e.borrow().lookup("y").unwrap(), Value::number(4));
+        }
+        {
+            // Run the 'else' clause.
+            let e = Rc::new(RefCell::new(Env::new()));
+            e.borrow_mut().define("x", Value::False);
+            e.borrow_mut().define("y", Value::False);
+            assert_eq!(
+                eval(
+                    e.clone(),
+                    Value::list(&[
+                        Value::symbol("cond"),
+                        Value::list(&[Value::symbol("x"), Value::number(1),]),
+                        Value::list(&[
+                            Value::symbol("else"),
+                            Value::list(&[
+                                Value::symbol("set!"),
+                                Value::symbol("y"),
+                                Value::string("so exciting"),
+                            ]),
+                            Value::number(4324),
+                        ]),
+                    ])
+                )
+                .unwrap(),
+                Value::number(4324),
+            );
+            assert_eq!(
+                e.borrow().lookup("y").unwrap(),
+                Value::string("so exciting")
+            );
+        }
+        {
+            // Fall through the first few cases.
+            let e = Rc::new(RefCell::new(Env::new()));
+            e.borrow_mut().define("x", Value::False);
+            e.borrow_mut().define("y", Value::False);
+            e.borrow_mut().define("z", Value::number(1));
+            assert_eq!(
+                eval(
+                    e.clone(),
+                    Value::list(&[
+                        Value::symbol("cond"),
+                        Value::list(&[Value::symbol("x"), Value::number(1)]),
+                        Value::list(&[Value::symbol("y"), Value::number(2)]),
+                        Value::list(&[Value::symbol("z"), Value::number(3)]),
+                    ]),
+                )
+                .unwrap(),
+                Value::number(3),
+            );
+            assert_eq!(
+                eval(
+                    e.clone(),
+                    Value::list(&[
+                        Value::symbol("cond"),
+                        Value::list(&[Value::symbol("x"), Value::number(1)]),
+                        Value::list(&[Value::symbol("y"), Value::number(2)]),
+                    ]),
+                )
+                .unwrap(),
+                Value::False,
+            );
+        }
+        {
+            // Edge cases
+            let e = Rc::new(RefCell::new(Env::new()));
+            assert_eq!(
+                eval(e.clone(), Value::list(&[Value::symbol("cond")]),).unwrap(),
+                Value::False,
+            );
+            assert_eq!(
+                eval(
+                    e.clone(),
+                    Value::list(&[Value::symbol("cond"), Value::list(&[Value::number(0)]),]),
+                )
+                .unwrap(),
+                Value::False,
+            );
+            assert_eq!(
+                eval(
+                    e.clone(),
+                    Value::list(&[Value::symbol("cond"), Value::list(&[Value::symbol("else")]),]),
+                )
+                .unwrap(),
+                Value::False
+            );
+        }
     }
 
     #[test]
