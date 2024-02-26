@@ -10,7 +10,8 @@ use core::cell::RefCell;
 use crate::env::Env;
 use crate::eval::EvalError;
 
-/// A Scheme value.
+/// A Scheme value. It represents both the AST of a program and runtime
+/// values since Scheme is a homoiconic (i.e. "code as data") language.
 #[derive(Clone)]
 pub enum Value {
     String(String),

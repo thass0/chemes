@@ -10,6 +10,16 @@ use crate::env::Env;
 use crate::syntax;
 use crate::value::Value;
 
+/// Evaluate a single value. This is the primary function that drives
+/// the evaluation process of a Scheme program.
+///
+/// To apply functions, it calls itself recursively and then applies
+/// the function body to the function's arguments.
+///
+/// `eval` modifies the environment if 'set!' or 'define' are called.
+///
+/// It also transforms derived expressions (syntactic sugar) into
+/// primitive values to evaluate them.
 pub fn eval(env: Rc<RefCell<Env>>, value: Value) -> EvalResult<Value> {
     match value {
         s @ Value::String(_) => Ok(s),

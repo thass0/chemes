@@ -1,9 +1,16 @@
+//! The parser (available through the [`parse`] function)
+//! in this module parses Scheme source code. It uses the
+//! `lex` function from the lex module to turn the
+//! string into a list of tokens that can be parsed. The
+//! output of the parser is a normal lisp value.
+
 use alloc::vec::Vec;
 
 use crate::lex::*;
 use crate::value::*;
 
-/// Parse a string into a sequence of Scheme values that can be evaluated.
+/// Parse a string of Scheme source code. Turn it into a list of
+/// Values that can be evaluated.
 pub fn parse<A: AsRef<str>>(src: A) -> ParseResult<Vec<Value>> {
     let tokens = lex(src.as_ref()).map_err(ParseError::InvalidChar)?;
     parse_tokens(&mut tokens.into_iter())

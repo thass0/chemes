@@ -1,14 +1,19 @@
+//! The `lex` function in this module turns a string
+//! of Scheme source code into a list of tokens that
+//! represent the code. It is used in the `parse`
+//! module as the first step to the parser.
+
 use alloc::fmt;
 use alloc::fmt::Formatter;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::iter::Peekable;
 use core::str::Chars;
-/// Tokenize the input
 use libm::{exp10, floor, log10};
 
 use crate::value::Number;
 
+/// Lex a string of Scheme source code and turn it into a list of tokens.
 pub fn lex(src: &str) -> Result<Vec<Token>, InvalidChar> {
     let mut cursor = Cursor::new(src);
     let mut tokens = Vec::new();
